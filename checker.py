@@ -50,10 +50,30 @@ HEADERS = {
 }
 
 def fetch_page(url: str, timeout: int = 20) -> str:
-    """Fetch HTML content with realistic browser headers."""
+    """Fetch HTML content with realistic browser headers using requests or urllib."""
+    try:
+        import requests
+        session = requests.Session()
+        session.headers.update(HEADERS)
+        resp = session.get(url, timeout=timeout)
+        resp.raise_for_status()
+        return resp.text
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"[Warning] requests fetch failed: {e}. Falling back to urllib.")
+
+    import gzip
+    import zlib
     req = urllib.request.Request(url, headers=HEADERS)
     with urllib.request.urlopen(req, timeout=timeout) as response:
-        return response.read().decode("utf-8", errors="ignore")
+        content_encoding = response.headers.get("Content-Encoding", "").lower()
+        raw = response.read()
+        if "gzip" in content_encoding:
+            raw = gzip.decompress(raw)
+        elif "deflate" in content_encoding:
+            raw = zlib.decompress(raw)
+        return raw.decode("utf-8", errors="ignore")
 
 def parse_initial_state(html: str) -> Optional[Dict[str, Any]]:
     """Extract and parse window.__INITIAL_STATE__ JSON from HTML."""
@@ -78,6 +98,28 @@ def parse_initial_state(html: str) -> Optional[Dict[str, Any]]:
                 return json.loads(html[start:end])
             except Exception as e:
                 print(f"[Warning] Fallback JSON parse failed: {e}")
+
+    # Fallback: JSON-LD Product schema blocks
+    try:
+        ld_matches = re.findall(r'<script\s+type=[\"\']application/ld\+json[\"\']>(.*?)</script>', html, re.DOTALL)
+        for ld in ld_matches:
+            try:
+                obj = json.loads(ld)
+                if isinstance(obj, dict) and obj.get("@type") == "Product":
+                    return {
+                        "multiWidgetState": {
+                            "pageDataResponse": {
+                                "seoData": {
+                                    "schema": [obj]
+                                }
+                            }
+                        }
+                    }
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[Warning] JSON-LD parse failed: {e}")
+
     return None
 
 def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
@@ -85,6 +127,12 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
     Checks stock and deliverability for the specified Flipkart product.
     Returns a dictionary containing product info and stock status.
     """
+    # Dynamic default title based on PID in URL
+    title = "vivo X200T (12GB 256GB)"
+    for v in DEFAULT_VARIANTS:
+        if v.get("pid") in url:
+            title = v.get("name", title)
+
     try:
         html = fetch_page(url)
     except Exception as e:
@@ -92,7 +140,7 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
             "success": False,
             "error": f"Failed to fetch page: {e}",
             "is_available": False,
-            "title": "vivo X200T",
+            "title": title,
             "price": "Unknown",
             "url": url,
         }
@@ -100,7 +148,6 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
     data = parse_initial_state(html)
 
     # Defaults
-    title = "vivo X200T (Stellar Black, 256 GB)"
     price = "₹59,999"
     image_url = ""
     is_available = False
@@ -113,6 +160,7 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
             schemas = seo_data.get("schema", [])
             for item in schemas:
                 if item.get("@type") == "Product":
+
                     title = item.get("name", title)
                     image_url = item.get("image", image_url)
                     offer = item.get("offers", {})
