@@ -3,13 +3,26 @@ Email & Push Notification Dispatcher for Flipkart Stock Tracker
 """
 
 import os
+import sys
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone
 import urllib.request
 import urllib.parse
-from typing import Dict, Any
+from typing import Dict, Any, List, Union
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # Recipient
 DEFAULT_EMAIL_TO = "tksanthosh494@gmail.com"
@@ -19,7 +32,7 @@ DEFAULT_SMTP_HOST = "smtp.gmail.com"
 DEFAULT_SMTP_PORT = 587
 
 def send_email_alert(
-    product_data: Dict[str, Any],
+    product_data: Union[Dict[str, Any], List[Dict[str, Any]]],
     to_email: str = DEFAULT_EMAIL_TO,
     is_test: bool = False
 ) -> bool:
@@ -34,31 +47,51 @@ def send_email_alert(
 
     if not smtp_user or not smtp_pass:
         print("[Notifier] SMTP credentials not provided. Skipping email delivery.")
-        print("          Set SMTP_USER/GMAIL_USER and SMTP_PASS/GMAIL_APP_PASSWORD environment variables or GitHub Secrets.")
+        print("          Set GMAIL_USER and GMAIL_APP_PASSWORD secrets in your GitHub repository.")
         return False
 
-    title = product_data.get("title", "vivo X200T")
-    price = product_data.get("price", "Check website")
-    url = product_data.get("url", "https://www.flipkart.com")
+    items: List[Dict[str, Any]] = product_data if isinstance(product_data, list) else [product_data]
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p IST")
 
-    subject_prefix = "[TEST] " if is_test else "🚨 [AVAILABLE NOW] "
-    subject = f"{subject_prefix}{title} is now in stock on Flipkart!"
+    in_stock_items = [it for it in items if it.get("is_available", False)]
+    if is_test:
+        subject = "[TEST] Vivo X200T Stock Monitor Test Alert"
+    elif in_stock_items:
+        names = ", ".join([it.get("title", "Vivo X200T") for it in in_stock_items])
+        subject = f"🚨 [AVAILABLE NOW] {names} is in stock on Flipkart!"
+    else:
+        subject = "Flipkart Vivo X200T Stock Update"
 
-    # Plain text version
-    text_content = f"""
-Flipkart Stock Alert!
+    # Plain text content
+    text_lines = ["Flipkart Stock Tracker Notification\n"]
+    for it in items:
+        status_text = "IN STOCK & AVAILABLE" if it.get("is_available") else "OUT OF STOCK"
+        if is_test:
+            status_text = "TEST RUN"
+        text_lines.append(f"- {it.get('title', 'vivo X200T')}")
+        text_lines.append(f"  Price: {it.get('price', 'N/A')}")
+        text_lines.append(f"  Status: {status_text}")
+        text_lines.append(f"  Link: {it.get('url', '')}\n")
+    text_lines.append(f"Checked at: {now_str}")
+    text_content = "\n".join(text_lines)
 
-Product: {title}
-Price: {price}
-Status: {'TEST RUN' if is_test else 'IN STOCK & AVAILABLE'}
-Time: {now_str}
+    # HTML cards
+    cards_html = ""
+    for it in items:
+        avail = it.get("is_available", False) or is_test
+        badge_color = "#059669" if avail else "#dc2626"
+        badge_text = "AVAILABLE NOW" if it.get("is_available") else ("TEST RUN" if is_test else "OUT OF STOCK")
+        btn_html = f"""<a href="{it.get('url', '#')}" class="btn" target="_blank" style="display:inline-block; margin-top:12px; background:#fb641b; color:#ffffff !important; padding:10px 18px; text-decoration:none; font-weight:bold; border-radius:6px;">BUY ON FLIPKART</a>""" if avail else ""
 
-Direct link to buy:
-{url}
-"""
+        cards_html += f"""
+        <div class="card" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:18px; margin-bottom:16px;">
+          <span style="display:inline-block; padding:4px 10px; border-radius:20px; font-weight:bold; font-size:12px; color:#fff; background:{badge_color}; margin-bottom:8px;">{badge_text}</span>
+          <h2 style="margin:4px 0 8px 0; font-size:17px; color:#0f172a;">{it.get('title', 'vivo X200T')}</h2>
+          <div style="font-size:22px; font-weight:800; color:#1e293b; margin:6px 0;">{it.get('price', 'Check website')}</div>
+          {btn_html}
+        </div>
+        """
 
-    # Rich HTML version
     html_content = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -66,35 +99,23 @@ Direct link to buy:
   <style>
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; }}
     .container {{ max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }}
-    .header {{ background: #2874f0; color: #ffffff; padding: 24px; text-align: center; }}
-    .header h1 {{ margin: 0; font-size: 22px; }}
-    .content {{ padding: 24px; }}
-    .card {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 20px; }}
-    .badge {{ display: inline-block; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 13px; color: #fff; background: {'#059669' if not is_test else '#3b82f6'}; margin-bottom: 12px; }}
-    .price {{ font-size: 28px; font-weight: 800; color: #1e293b; margin: 8px 0; }}
-    .btn {{ display: block; width: 100%; box-sizing: border-box; text-align: center; background: #fb641b; color: #ffffff !important; padding: 14px 20px; text-decoration: none; font-size: 16px; font-weight: bold; border-radius: 8px; margin-top: 20px; }}
-    .btn:hover {{ background: #e55a15; }}
-    .footer {{ padding: 16px 24px; background: #f1f5f9; text-align: center; font-size: 12px; color: #64748b; }}
+    .header {{ background: #2874f0; color: #ffffff; padding: 20px; text-align: center; }}
+    .header h1 {{ margin: 0; font-size: 20px; }}
+    .content {{ padding: 20px; }}
+    .footer {{ padding: 14px 20px; background: #f1f5f9; text-align: center; font-size: 12px; color: #64748b; }}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>Flipkart Stock Alert</h1>
+      <h1>Flipkart Stock Alert: Vivo X200T</h1>
     </div>
     <div class="content">
-      <div class="card">
-        <span class="badge">{'AVAILABLE NOW' if not is_test else 'TEST NOTIFICATION'}</span>
-        <h2 style="margin: 0 0 8px 0; font-size: 18px; color: #0f172a;">{title}</h2>
-        <div class="price">{price}</div>
-        <p style="margin: 4px 0; color: #475569; font-size: 14px;">The phone is currently reported in stock and deliverable!</p>
-        <p style="margin: 4px 0; color: #64748b; font-size: 12px;">Checked at: {now_str}</p>
-      </div>
-
-      <a href="{url}" class="btn" target="_blank">BUY NOW ON FLIPKART</a>
+      <p style="margin: 0 0 16px 0; color: #475569; font-size: 14px;">Latest stock status checked at <b>{now_str}</b>:</p>
+      {cards_html}
     </div>
     <div class="footer">
-      Automated alert sent to {to_email}. Generated by Flipkart Stock Tracker GitHub Action.
+      Automated alert sent to {to_email}. Powered by GitHub Actions.
     </div>
   </div>
 </body>
@@ -124,7 +145,11 @@ Direct link to buy:
         print(f"[Notifier] Failed to send email: {e}")
         return False
 
-def send_push_alert(product_data: Dict[str, Any], topic: str, is_test: bool = False) -> bool:
+def send_push_alert(
+    product_data: Union[Dict[str, Any], List[Dict[str, Any]]],
+    topic: str,
+    is_test: bool = False
+) -> bool:
     """
     Sends an optional instant push notification to phone via ntfy.sh.
     Zero-config: user just installs the free ntfy app or opens ntfy.sh/<topic> in browser.
@@ -132,11 +157,15 @@ def send_push_alert(product_data: Dict[str, Any], topic: str, is_test: bool = Fa
     if not topic:
         return False
 
-    title = product_data.get("title", "vivo X200T")
-    price = product_data.get("price", "₹59,999")
-    url = product_data.get("url", "https://flipkart.com")
+    items: List[Dict[str, Any]] = product_data if isinstance(product_data, list) else [product_data]
+    in_stock = [it for it in items if it.get("is_available")] or items
+    target = in_stock[0]
 
-    msg_title = "[TEST] Vivo X200T Tracker" if is_test else "🚨 Vivo X200T is IN STOCK!"
+    title = target.get("title", "vivo X200T")
+    price = target.get("price", "₹59,999")
+    url = target.get("url", "https://flipkart.com")
+
+    msg_title = "[TEST] Vivo X200T Tracker" if is_test else "Vivo X200T is IN STOCK!"
     body = f"{title} is available now for {price}! Tap to purchase."
 
     try:
@@ -147,7 +176,7 @@ def send_push_alert(product_data: Dict[str, Any], topic: str, is_test: bool = Fa
                 "Title": msg_title,
                 "Priority": "high",
                 "Click": url,
-                "Tags": "tada,shopping_cart",
+                "Tags": "rotating_light,shopping_cart" if not is_test else "test_tube",
             },
             method="POST",
         )
@@ -161,7 +190,7 @@ def send_push_alert(product_data: Dict[str, Any], topic: str, is_test: bool = Fa
     return False
 
 def dispatch_alerts(
-    product_data: Dict[str, Any],
+    product_data: Union[Dict[str, Any], List[Dict[str, Any]]],
     to_email: str = DEFAULT_EMAIL_TO,
     is_test: bool = False
 ) -> Dict[str, bool]:
@@ -175,6 +204,7 @@ def dispatch_alerts(
         "email": email_success,
         "push": push_success,
     }
+
 
 if __name__ == "__main__":
     test_data = {

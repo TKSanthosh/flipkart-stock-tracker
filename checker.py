@@ -7,11 +7,36 @@ import json
 import re
 import urllib.request
 import urllib.error
-from typing import Dict, Any, Optional
+import os
+import sys
+from typing import Dict, Any, Optional, List
+
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 DEFAULT_URL = (
     "https://www.flipkart.com/vivo-x200t-stellar-black-256-gb/p/itm1b8452d68859b?pid=MOBHJK5MBRDS3GUQ"
 )
+
+DEFAULT_VARIANTS = [
+    {
+        "pid": "MOBHJK5MBRDS3GUQ",
+        "color": "Stellar Black",
+        "name": "vivo X200T (Stellar Black, 256 GB)",
+        "ram_storage": "12 GB RAM | 256 GB ROM",
+        "url": "https://www.flipkart.com/vivo-x200t-stellar-black-256-gb/p/itm1b8452d68859b?pid=MOBHJK5MBRDS3GUQ",
+    },
+    {
+        "pid": "MOBHJK5M62ZH9FAM",
+        "color": "Seaside Lilac",
+        "name": "vivo X200T (Seaside Lilac, 256 GB)",
+        "ram_storage": "12 GB RAM | 256 GB ROM",
+        "url": "https://www.flipkart.com/vivo-x200t-seaside-lilac-256-gb/p/itm1b8452d68859b?pid=MOBHJK5M62ZH9FAM",
+    },
+]
 
 HEADERS = {
     "User-Agent": (
@@ -162,8 +187,45 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
             is_available = True
             status_details.append("HTML indicates Buy Now / Add to Cart")
 
+    # Extract PID
+    pid_match = re.search(r"pid=([A-Z0-9]+)", url)
+    pid = pid_match.group(1) if pid_match else "UNKNOWN"
+
+    # Extract swatches/variants if available
+    discovered_variants = []
+    if data:
+        try:
+            slots = data.get("multiWidgetState", {}).get("widgetsData", {}).get("slots", [])
+            for s in slots:
+                w = s.get("slotData", {}).get("widget", {})
+                if w.get("widgetName") == "ATLAS_SWATCH_IMAGE":
+                    items = (
+                        w.get("data", {})
+                        .get("dlsData", {})
+                        .get("variant-selector-image-view_0", {})
+                        .get("value", {})
+                        .get("horizontalListData_0", {})
+                        .get("value", [])
+                    )
+                    for it in items:
+                        t = it.get("value", {}).get("trackerData_0", {}).get("tracking", {})
+                        b = it.get("value", {}).get("box_0", {}).get("action", {})
+                        swatch_pid = t.get("productId")
+                        swatch_title = t.get("contentTitle")
+                        swatch_url = b.get("url")
+                        if swatch_pid and swatch_url:
+                            clean_url = "https://www.flipkart.com" + swatch_url.split("&marketplace")[0]
+                            discovered_variants.append({
+                                "pid": swatch_pid,
+                                "color": swatch_title,
+                                "url": clean_url
+                            })
+        except Exception as e:
+            print(f"[Warning] Failed to extract swatch variants: {e}")
+
     return {
         "success": True,
+        "pid": pid,
         "is_available": is_available,
         "title": title,
         "price": price,
@@ -171,7 +233,21 @@ def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
         "status_summary": "AVAILABLE / IN STOCK" if is_available else "OUT OF STOCK",
         "details": status_details,
         "url": url,
+        "discovered_variants": discovered_variants,
     }
+
+def get_tracked_variants(custom_url: Optional[str] = None):
+    """Returns list of variants to track."""
+    if custom_url and custom_url != DEFAULT_URL:
+        pid_m = re.search(r"pid=([A-Z0-9]+)", custom_url)
+        return [{
+            "pid": pid_m.group(1) if pid_m else "CUSTOM",
+            "color": "Selected Variant",
+            "name": "vivo X200T",
+            "url": custom_url
+        }]
+    return DEFAULT_VARIANTS
+
 
 if __name__ == "__main__":
     import sys

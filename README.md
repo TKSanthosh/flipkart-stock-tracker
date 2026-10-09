@@ -1,33 +1,29 @@
-# 📱 Flipkart Vivo X200T Stock & Deliverability Monitor
+# 📱 Flipkart Vivo X200T (12GB / 256GB) Stock Monitor
 
-Automated stock tracker and alert system hosted on **GitHub Actions**. It checks Flipkart every hour to see if the **vivo X200T (Stellar Black, 256 GB)** becomes available and deliverable, and immediately sends an alert email to **`tksanthosh494@gmail.com`**.
+Automated stock tracker and alert system hosted on **GitHub Actions**. It continuously checks Flipkart to see if the **vivo X200T 12GB RAM / 256GB ROM** (both **Stellar Black** and **Seaside Lilac** colorways) becomes available and deliverable, and immediately sends an alert email to **`tksanthosh494@gmail.com`**.
 
 ---
 
 ## 🚀 Features
 
-- **Automated Hourly Execution**: Runs automatically on GitHub Actions every hour (`0 * * * *`).
+- **Multi-Variant Tracking**: Monitors both 12GB/256GB variants (**Stellar Black** and **Seaside Lilac**) simultaneously.
+- **Automated Execution**: Runs automatically on GitHub Actions every 30 minutes.
 - **Direct SSR Data Inspection**: Parses Flipkart's internal server-rendered JSON state (`window.__INITIAL_STATE__`), checking `schema.org` stock status, Flipkart's Product State Intelligence (`psi`), and interactive action buttons (`BUY_NOW` vs `NOTIFY_ME`).
-- **Rich HTML Email Alerts**: Sends clean, high-priority emails with the product name, price, and direct "Buy Now" link.
-- **Bonus Instant Mobile Push Notifications**: Optional zero-setup push alerts to your phone via `ntfy.sh`.
-- **State Persistence**: Remembers previous stock status between runs so it triggers an immediate alert the exact hour the phone transitions to in-stock.
+- **Rich HTML Email Alerts**: Sends clean, high-priority emails with product names, price, and direct "Buy Now" links.
+- **Instant Mobile Push Notifications**: Zero-setup push alerts to your phone via `ntfy.sh`.
+- **State Persistence**: Remembers previous stock status between runs so it triggers an immediate alert the exact run the phone transitions to in-stock.
 
 ---
 
 ## 🛠️ Step-by-Step Setup Guide
 
-### 1. Push this Repository to GitHub
+### 1. Repository Location
 
-Open PowerShell in this directory:
+Local project directory:
 ```powershell
-cd "C:\Users\u1224576\.gemini\antigravity\scratch\flipkart-stock-tracker"
+cd "C:\Users\Santhosh\.gemini\antigravity\scratch\flipkart-stock-tracker"
 ```
 
-If you have the GitHub CLI installed, you can create and push the repo with one command:
-```powershell
-gh auth login
-gh repo create flipkart-stock-tracker --public --source=. --remote=origin --push
-```
 
 Or manually:
 1. Create a new repository named `flipkart-stock-tracker` on [GitHub](https://github.com/new).
