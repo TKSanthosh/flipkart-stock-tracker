@@ -31,36 +31,70 @@ DEFAULT_EMAIL_TO = "tksanthosh494@gmail.com"
 DEFAULT_SMTP_HOST = "smtp.gmail.com"
 DEFAULT_SMTP_PORT = 587
 
+def send_via_gmail_api(msg: MIMEMultipart, to_email: str) -> bool:
+    """Sends email via official Google Gmail REST API using OAuth2 refresh token."""
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+    refresh_token = os.environ.get("GOOGLE_REFRESH_TOKEN")
+
+    if not (client_id and client_secret and refresh_token):
+        return False
+
+    try:
+        import base64
+        import json
+
+        token_data = urllib.parse.urlencode({
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+            "grant_type": "refresh_token"
+        }).encode("utf-8")
+        req = urllib.request.Request("https://oauth2.googleapis.com/token", data=token_data)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            access_token = json.loads(resp.read().decode())["access_token"]
+
+        raw_msg = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        send_req = urllib.request.Request(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            data=json.dumps({"raw": raw_msg}).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            }
+        )
+        with urllib.request.urlopen(send_req, timeout=15) as resp:
+            res = json.loads(resp.read().decode())
+            print(f"[Notifier] Email successfully delivered via Gmail API to {to_email}! (ID: {res.get('id')})")
+            return True
+    except Exception as e:
+        print(f"[Notifier] Gmail API sending error: {e}")
+        return False
+
 def send_email_alert(
     product_data: Union[Dict[str, Any], List[Dict[str, Any]]],
     to_email: str = DEFAULT_EMAIL_TO,
     is_test: bool = False
 ) -> bool:
     """
-    Sends an HTML alert email to the recipient via SMTP.
-    Requires SMTP_USER and SMTP_PASS (or GMAIL_USER and GMAIL_APP_PASSWORD) environment variables.
+    Sends an HTML alert email to the recipient via Gmail API or SMTP.
     """
-    smtp_user = os.environ.get("SMTP_USER") or os.environ.get("GMAIL_USER")
-    smtp_pass = os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD")
-    smtp_host = os.environ.get("SMTP_HOST", DEFAULT_SMTP_HOST)
-    smtp_port = int(os.environ.get("SMTP_PORT", DEFAULT_SMTP_PORT))
+    smtp_user = os.environ.get("GMAIL_USER") or os.environ.get("SMTP_USER") or "tksanthosh494@gmail.com"
 
-    if not smtp_user or not smtp_pass:
-        print("[Notifier] SMTP credentials not provided. Skipping email delivery.")
-        print("          Set GMAIL_USER and GMAIL_APP_PASSWORD secrets in your GitHub repository.")
-        return False
 
     items: List[Dict[str, Any]] = product_data if isinstance(product_data, list) else [product_data]
     now_str = datetime.now().strftime("%d %b %Y, %I:%M %p IST")
 
     in_stock_items = [it for it in items if it.get("is_available", False)]
+    if not in_stock_items and not is_test:
+        print("[Notifier] No phone variant is currently available in stock. Skipping email delivery.")
+        return False
+
     if is_test:
         subject = "[TEST] Vivo X200T Stock Monitor Test Alert"
-    elif in_stock_items:
+    else:
         names = ", ".join([it.get("title", "Vivo X200T") for it in in_stock_items])
         subject = f"🚨 [AVAILABLE NOW] {names} is in stock on Flipkart!"
-    else:
-        subject = "Flipkart Vivo X200T Stock Update"
 
     # Plain text content
     text_lines = ["Flipkart Stock Tracker Notification\n"]
@@ -130,6 +164,22 @@ def send_email_alert(
     msg.attach(MIMEText(text_content, "plain", "utf-8"))
     msg.attach(MIMEText(html_content, "html", "utf-8"))
 
+    # 1. Try Google Gmail REST API first (recommended, zero-port block, official Google OAuth)
+    if os.environ.get("GOOGLE_REFRESH_TOKEN") and os.environ.get("GOOGLE_CLIENT_ID"):
+        if send_via_gmail_api(msg, to_email):
+            return True
+
+    # 2. Fallback to standard SMTP (Gmail App Password)
+    smtp_pass = os.environ.get("SMTP_PASS") or os.environ.get("GMAIL_APP_PASSWORD")
+    if not smtp_pass:
+        print("[Notifier] No email delivery credentials found.")
+        print("          Provide either GOOGLE_REFRESH_TOKEN / GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET (Gmail API)")
+        print("          or GMAIL_USER / GMAIL_APP_PASSWORD (SMTP) in GitHub Secrets.")
+        return False
+
+    smtp_host = os.environ.get("SMTP_HOST", DEFAULT_SMTP_HOST)
+    smtp_port = int(os.environ.get("SMTP_PORT", DEFAULT_SMTP_PORT))
+
     try:
         print(f"[Notifier] Connecting to SMTP server {smtp_host}:{smtp_port}...")
         server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
@@ -142,7 +192,7 @@ def send_email_alert(
         print(f"[Notifier] Email successfully sent to {to_email}!")
         return True
     except Exception as e:
-        print(f"[Notifier] Failed to send email: {e}")
+        print(f"[Notifier] Failed to send email via SMTP: {e}")
         return False
 
 def send_push_alert(

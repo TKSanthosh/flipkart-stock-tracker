@@ -122,21 +122,13 @@ def main():
         should_alert = False
         if is_avail:
             if not was_avail:
-                print(f"  🚨 [STOCK ALERT] {title} changed from OUT OF STOCK -> AVAILABLE!")
+                print(f"  🚨 [STOCK ALERT] {title} is now AVAILABLE on Flipkart!")
                 should_alert = True
             elif args.force:
-                print(f"  ⚡ [FORCE ALERT] {title} is available and force flag is set.")
+                print(f"  ⚡ [FORCE ALERT] {title} is in stock and force flag is set.")
                 should_alert = True
-            elif last_alert_str:
-                # Optional: Send reminder every 12 hours if still in stock
-                try:
-                    last_alert_dt = datetime.fromisoformat(last_alert_str)
-                    if datetime.now(timezone.utc) - last_alert_dt > timedelta(hours=12):
-                        print(f"  ⏰ [REMINDER] {title} has been in stock for >12h since last alert.")
-                        should_alert = True
-                except Exception:
-                    pass
-            else:
+            elif not last_alert_str:
+                print(f"  🚨 [STOCK ALERT] {title} is in stock!")
                 should_alert = True
 
         if should_alert:
@@ -153,13 +145,14 @@ def main():
         }
         prev_variants[pid] = var_state
 
-    # 3. Dispatch alerts if any variant is available and needs notifying
+    # 3. Dispatch alerts ONLY when phone is available
     if items_to_alert:
-        print(f"\nDispatching alert to {args.email} for {len(items_to_alert)} item(s)...")
-        results = dispatch_alerts(current_results, to_email=args.email, is_test=False)
+        print(f"\n[ALERT] Phone is AVAILABLE! Sending email to {args.email} for {len(items_to_alert)} item(s)...")
+        results = dispatch_alerts(items_to_alert, to_email=args.email, is_test=False)
         print(f"Dispatch results: {results}")
     else:
-        print("\nNo new stock alerts triggered during this check.")
+        print("\n[INFO] Phone is currently OUT OF STOCK. No email sent.")
+
 
     # 4. Save state
     prev_state["last_check_time"] = now_iso
