@@ -1,0 +1,190 @@
+"""
+Flipkart Stock & Deliverability Checker
+Scrapes and parses product availability for Vivo X200T
+"""
+
+import json
+import re
+import urllib.request
+import urllib.error
+from typing import Dict, Any, Optional
+
+DEFAULT_URL = (
+    "https://www.flipkart.com/vivo-x200t-stellar-black-256-gb/p/itm1b8452d68859b?pid=MOBHJK5MBRDS3GUQ"
+)
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-IN,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
+}
+
+def fetch_page(url: str, timeout: int = 20) -> str:
+    """Fetch HTML content with realistic browser headers."""
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        return response.read().decode("utf-8", errors="ignore")
+
+def parse_initial_state(html: str) -> Optional[Dict[str, Any]]:
+    """Extract and parse window.__INITIAL_STATE__ JSON from HTML."""
+    match = re.search(
+        r"window\.__INITIAL_STATE__\s*=\s*(\{.*?\});\s*(?:</script>|window\.)",
+        html,
+        re.DOTALL,
+    )
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except Exception as e:
+            print(f"[Warning] Failed to parse matched JSON: {e}")
+
+    # Fallback substring search
+    idx = html.find("window.__INITIAL_STATE__ = ")
+    if idx != -1:
+        start = idx + len("window.__INITIAL_STATE__ = ")
+        end = html.find(";</script>", start)
+        if end != -1:
+            try:
+                return json.loads(html[start:end])
+            except Exception as e:
+                print(f"[Warning] Fallback JSON parse failed: {e}")
+    return None
+
+def check_flipkart_stock(url: str = DEFAULT_URL) -> Dict[str, Any]:
+    """
+    Checks stock and deliverability for the specified Flipkart product.
+    Returns a dictionary containing product info and stock status.
+    """
+    try:
+        html = fetch_page(url)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to fetch page: {e}",
+            "is_available": False,
+            "title": "vivo X200T",
+            "price": "Unknown",
+            "url": url,
+        }
+
+    data = parse_initial_state(html)
+
+    # Defaults
+    title = "vivo X200T (Stellar Black, 256 GB)"
+    price = "₹59,999"
+    image_url = ""
+    is_available = False
+    status_details = []
+
+    if data:
+        # 1. Product title & price from SEO schema
+        try:
+            seo_data = data.get("multiWidgetState", {}).get("pageDataResponse", {}).get("seoData", {})
+            schemas = seo_data.get("schema", [])
+            for item in schemas:
+                if item.get("@type") == "Product":
+                    title = item.get("name", title)
+                    image_url = item.get("image", image_url)
+                    offer = item.get("offers", {})
+                    if isinstance(offer, dict):
+                        p = offer.get("price")
+                        if p:
+                            price = f"₹{p:,}" if isinstance(p, (int, float)) else f"₹{p}"
+                        schema_avail = offer.get("availability", "")
+                        if "InStock" in schema_avail:
+                            is_available = True
+                            status_details.append("Schema reports InStock")
+                        elif "OutOfStock" in schema_avail:
+                            status_details.append("Schema reports OutOfStock")
+        except Exception as e:
+            print(f"[Warning] Error parsing SEO schema: {e}")
+
+        # 2. Tracking events / PSI status
+        try:
+            events = (
+                data.get("multiWidgetState", {})
+                .get("pageDataResponse", {})
+                .get("pageContext", {})
+                .get("fdpEventTracking", {})
+                .get("events", {})
+            )
+            pls = events.get("psi", {}).get("pls", {})
+            avail_status = pls.get("availabilityStatus", "")
+            if avail_status:
+                status_details.append(f"PSI status: {avail_status}")
+                if avail_status == "IN_STOCK":
+                    is_available = True
+
+            if pls.get("isAvailable") is True or pls.get("available") is True:
+                is_available = True
+                status_details.append("PSI isAvailable: True")
+        except Exception as e:
+            print(f"[Warning] Error parsing PSI status: {e}")
+
+        # 3. Action Buttons (Buy Now, Add to Cart, Notify Me)
+        try:
+            slots = data.get("multiWidgetState", {}).get("widgetsData", {}).get("slots", [])
+            has_notify_me = False
+            has_buy_now = False
+
+            for slot in slots:
+                widget = slot.get("slotData", {}).get("widget", {})
+                if widget.get("widgetName") == "ATLAS_PRODUCT_ACTION":
+                    raw_str = json.dumps(widget)
+                    if "NOTIFY_ME" in raw_str:
+                        has_notify_me = True
+                    if "BUY_NOW" in raw_str or "CART_ADD" in raw_str:
+                        # Check if it is a real buy now button
+                        if "Notify Me" not in raw_str:
+                            has_buy_now = True
+
+            if has_buy_now and not has_notify_me:
+                is_available = True
+                status_details.append("Action button: BUY NOW / ADD TO CART active")
+            elif has_notify_me:
+                is_available = False
+                status_details.append("Action button: 'Notify Me' active (Out of Stock)")
+        except Exception as e:
+            print(f"[Warning] Error checking action buttons: {e}")
+
+    # Fallback to HTML text parsing if JSON state was unavailable
+    if not status_details:
+        html_lower = html.lower()
+        if "notify me" in html_lower or "currently out of stock" in html_lower or "sold out" in html_lower:
+            is_available = False
+            status_details.append("HTML indicates Out of Stock / Notify Me")
+        elif "buy now" in html_lower or "add to cart" in html_lower:
+            is_available = True
+            status_details.append("HTML indicates Buy Now / Add to Cart")
+
+    return {
+        "success": True,
+        "is_available": is_available,
+        "title": title,
+        "price": price,
+        "image_url": image_url,
+        "status_summary": "AVAILABLE / IN STOCK" if is_available else "OUT OF STOCK",
+        "details": status_details,
+        "url": url,
+    }
+
+if __name__ == "__main__":
+    import sys
+    if sys.platform == "win32":
+        try:
+            sys.stdout.reconfigure(encoding="utf-8")
+        except Exception:
+            pass
+
+    result = check_flipkart_stock()
+    print("--- Stock Check Result ---")
+    print(f"Product: {result['title']}")
+    print(f"Price: {result['price']}")
+    print(f"Status: {result['status_summary']}")
+    print(f"Is Available: {result['is_available']}")
+    print("Details:", result.get("details"))
