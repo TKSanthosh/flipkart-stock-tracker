@@ -2,8 +2,8 @@ name: Flipkart Vivo X200T Stock Monitor
 
 on:
   schedule:
-    # Run every 30 minutes
-    - cron: '*/30 * * * *'
+    # Run every 1 hour
+    - cron: '0 * * * *'
   workflow_dispatch:
     inputs:
       test_alert:

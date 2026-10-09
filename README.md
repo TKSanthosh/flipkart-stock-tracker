@@ -7,7 +7,7 @@ Automated stock tracker and alert system hosted on **GitHub Actions**. It contin
 ## 🚀 Features
 
 - **Multi-Variant Tracking**: Monitors both 12GB/256GB variants (**Stellar Black** and **Seaside Lilac**) simultaneously.
-- **Automated Execution**: Runs automatically on GitHub Actions every 30 minutes.
+- **Automated Execution**: Runs automatically on GitHub Actions every 1 hour (`0 * * * *`).
 - **Direct SSR Data Inspection**: Parses Flipkart's internal server-rendered JSON state (`window.__INITIAL_STATE__`), checking `schema.org` stock status, Flipkart's Product State Intelligence (`psi`), and interactive action buttons (`BUY_NOW` vs `NOTIFY_ME`).
 - **Rich HTML Email Alerts**: Sends clean, high-priority emails with product names, price, and direct "Buy Now" links.
 - **Instant Mobile Push Notifications**: Zero-setup push alerts to your phone via `ntfy.sh`.
