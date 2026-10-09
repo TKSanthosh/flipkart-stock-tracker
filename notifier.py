@@ -99,12 +99,15 @@ def send_email_alert(
     # Plain text content
     text_lines = ["Flipkart Stock Tracker Notification\n"]
     for it in items:
-        status_text = "IN STOCK & AVAILABLE" if it.get("is_available") else "OUT OF STOCK"
+        status_text = "IN STOCK & DELIVERABLE" if it.get("is_available") else "OUT OF STOCK"
         if is_test:
             status_text = "TEST RUN"
+        pins = ", ".join(it.get("deliverable_pincodes", []))
         text_lines.append(f"- {it.get('title', 'vivo X200T')}")
         text_lines.append(f"  Price: {it.get('price', 'N/A')}")
         text_lines.append(f"  Status: {status_text}")
+        if pins:
+            text_lines.append(f"  Deliverable to Pincodes: {pins}")
         text_lines.append(f"  Link: {it.get('url', '')}\n")
     text_lines.append(f"Checked at: {now_str}")
     text_content = "\n".join(text_lines)
@@ -114,14 +117,18 @@ def send_email_alert(
     for it in items:
         avail = it.get("is_available", False) or is_test
         badge_color = "#059669" if avail else "#dc2626"
-        badge_text = "AVAILABLE NOW" if it.get("is_available") else ("TEST RUN" if is_test else "OUT OF STOCK")
+        badge_text = "AVAILABLE & DELIVERABLE" if it.get("is_available") else ("TEST RUN" if is_test else "OUT OF STOCK")
         btn_html = f"""<a href="{it.get('url', '#')}" class="btn" target="_blank" style="display:inline-block; margin-top:12px; background:#fb641b; color:#ffffff !important; padding:10px 18px; text-decoration:none; font-weight:bold; border-radius:6px;">BUY ON FLIPKART</a>""" if avail else ""
+
+        pins_str = ", ".join(it.get("deliverable_pincodes", []))
+        pin_html = f"""<div style="font-size:13px; color:#15803d; font-weight:600; margin:4px 0;">✓ Deliverable to Madurai: {pins_str}</div>""" if pins_str else ""
 
         cards_html += f"""
         <div class="card" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:18px; margin-bottom:16px;">
           <span style="display:inline-block; padding:4px 10px; border-radius:20px; font-weight:bold; font-size:12px; color:#fff; background:{badge_color}; margin-bottom:8px;">{badge_text}</span>
           <h2 style="margin:4px 0 8px 0; font-size:17px; color:#0f172a;">{it.get('title', 'vivo X200T')}</h2>
           <div style="font-size:22px; font-weight:800; color:#1e293b; margin:6px 0;">{it.get('price', 'Check website')}</div>
+          {pin_html}
           {btn_html}
         </div>
         """
