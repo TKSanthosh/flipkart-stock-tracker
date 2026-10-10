@@ -2,8 +2,8 @@ name: Flipkart Vivo X200T Stock Monitor
 
 on:
   schedule:
-    # Run every 1 hour
-    - cron: '0 * * * *'
+    # Run every 5 minutes (shortest interval supported by GitHub Actions cron)
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       test_alert:
@@ -16,6 +16,11 @@ on:
         type: boolean
         required: false
         default: false
+      burst_minutes:
+        description: 'Optional: Run continuous 30-sec polling loop for N minutes (0 = single check)'
+        type: number
+        required: false
+        default: 0
 
 permissions:
   contents: write
@@ -58,7 +63,14 @@ jobs:
           if [ "${{ github.event.inputs.force_alert }}" = "true" ]; then
             ARGS="$ARGS --force"
           fi
-          python main.py $ARGS
+
+          BURST="${{ github.event.inputs.burst_minutes }}"
+          if [ -n "$BURST" ] && [ "$BURST" -gt "0" ] 2>/dev/null; then
+            echo "Starting continuous 30-second polling burst for $BURST minute(s)..."
+            timeout ${BURST}m python main.py --interval 30 || true
+          else
+            python main.py $ARGS
+          fi
 
       - name: Commit and Push Status
         run: |
