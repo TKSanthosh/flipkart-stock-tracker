@@ -1,5 +1,5 @@
 {
-  "last_check_time": "2026-10-29T19:31:43.742905+00:00",
+  "last_check_time": "2026-10-29T23:30:24.898306+00:00",
   "variants": {
     "MOBHJK5MBRDS3GUQ": {
       "title": "vivo X200T (Stellar Black, 256 GB)",
@@ -32,26 +32,29 @@
       "price": "\u20b959,999",
       "url": "https://www.flipkart.com/vivo-x200t-seaside-lilac-256-gb/p/itm1b8452d68859b?pid=MOBHJK5M62ZH9FAM",
       "national_in_stock": true,
-      "is_available": false,
-      "deliverable_pincodes": [],
+      "is_available": true,
+      "deliverable_pincodes": [
+        "625012",
+        "625001"
+      ],
       "pincode_status": {
         "625012": {
           "pincode": "625012",
           "is_available": true,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NoMatchingPlans"
+          "is_serviceable": true,
+          "is_deliverable": true,
+          "reason": "Deliverable"
         },
         "625001": {
           "pincode": "625001",
           "is_available": true,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NoMatchingPlans"
+          "is_serviceable": true,
+          "is_deliverable": true,
+          "reason": "Deliverable"
         }
       },
-      "last_status": "IN STOCK nationally, but NOT DELIVERABLE to 625012, 625001",
-      "last_alert_time": "2026-10-09T18:04:34.406883+00:00"
+      "last_status": "AVAILABLE & DELIVERABLE to 625012, 625001",
+      "last_alert_time": "2026-10-29T23:30:24.898306+00:00"
     }
   }
 }
