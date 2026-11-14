@@ -1,56 +1,26 @@
 {
-  "last_check_time": "2026-11-14T01:29:43.960991+00:00",
+  "last_check_time": "2026-11-14T07:52:17.360828+00:00",
   "variants": {
     "MOBHJK5MBRDS3GUQ": {
       "title": "vivo X200T (Stellar Black, 256 GB)",
-      "price": "\u20b959,999",
+      "price": "Unknown",
       "url": "https://www.flipkart.com/vivo-x200t-stellar-black-256-gb/p/itm1b8452d68859b?pid=MOBHJK5MBRDS3GUQ",
       "national_in_stock": false,
       "is_available": false,
       "deliverable_pincodes": [],
-      "pincode_status": {
-        "625012": {
-          "pincode": "625012",
-          "is_available": false,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NotAvailable"
-        },
-        "625001": {
-          "pincode": "625001",
-          "is_available": false,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NotAvailable"
-        }
-      },
-      "last_status": "OUT OF STOCK",
+      "pincode_status": {},
+      "last_status": "UNKNOWN",
       "last_alert_time": "2026-10-27T20:44:41.387024+00:00"
     },
     "MOBHJK5M62ZH9FAM": {
       "title": "vivo X200T (Seaside Lilac, 256 GB)",
-      "price": "\u20b959,999",
+      "price": "Unknown",
       "url": "https://www.flipkart.com/vivo-x200t-seaside-lilac-256-gb/p/itm1b8452d68859b?pid=MOBHJK5M62ZH9FAM",
-      "national_in_stock": true,
+      "national_in_stock": false,
       "is_available": false,
       "deliverable_pincodes": [],
-      "pincode_status": {
-        "625012": {
-          "pincode": "625012",
-          "is_available": true,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NoMatchingPlans"
-        },
-        "625001": {
-          "pincode": "625001",
-          "is_available": true,
-          "is_serviceable": false,
-          "is_deliverable": false,
-          "reason": "NoMatchingPlans"
-        }
-      },
-      "last_status": "IN STOCK nationally, but NOT DELIVERABLE to 625012, 625001",
+      "pincode_status": {},
+      "last_status": "UNKNOWN",
       "last_alert_time": "2026-10-29T23:30:24.898306+00:00"
     }
   }
